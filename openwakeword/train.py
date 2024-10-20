@@ -897,6 +897,7 @@ if __name__ == '__main__':
         # Export the trained model to onnx
         oww.export_model(model=best_model, model_name=config["model_name"], output_dir=config["output_dir"])
 
+        # FIXME deps issue
         # Convert the model from onnx to tflite format
-        convert_onnx_to_tflite(os.path.join(config["output_dir"], config["model_name"] + ".onnx"),
-                               os.path.join(config["output_dir"], config["model_name"] + ".tflite"))
+        # convert_onnx_to_tflite(os.path.join(config["output_dir"], config["model_name"] + ".onnx"),
+        #                        os.path.join(config["output_dir"], config["model_name"] + ".tflite"))
