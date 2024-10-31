@@ -1,4 +1,7 @@
+import json
+
 import torch
+from tensorflow.python.keras.saving.saving_utils import model_metadata
 from torch import optim, nn
 import torchinfo
 import torchmetrics
@@ -174,7 +177,7 @@ class Model(nn.Module):
                                ):
         # Cosine decay
         learning_rate = 0.5 * target_lr * (1 + np.cos(np.pi * (global_step - warmup_steps - hold)
-                                           / float(total_steps - warmup_steps - hold)))
+                                                      / float(total_steps - warmup_steps - hold)))
 
         # Target LR * progress of warmup (=1 at the final warmup step)
         warmup_lr = target_lr * (global_step / warmup_steps)
@@ -274,13 +277,13 @@ class Model(nn.Module):
         weights = np.linspace(1, max_negative_weight, int(steps)).tolist()
         val_steps = np.linspace(steps-int(steps*0.25), steps, 20).astype(np.int64)
         self.train_model(
-                    X=X_train,
-                    X_val=X_val,
-                    false_positive_val_data=false_positive_val_data,
-                    max_steps=steps,
-                    negative_weight_schedule=weights,
-                    val_steps=val_steps, warmup_steps=steps//5,
-                    hold_steps=steps//3, lr=lr, val_set_hrs=val_set_hrs)
+            X=X_train,
+            X_val=X_val,
+            false_positive_val_data=false_positive_val_data,
+            max_steps=steps,
+            negative_weight_schedule=weights,
+            val_steps=val_steps, warmup_steps=steps//5,
+            hold_steps=steps//3, lr=lr, val_set_hrs=val_set_hrs)
 
         # Sequence 2
         logging.info("#"*50 + "\nStarting training sequence 2...\n" + "#"*50)
@@ -295,13 +298,13 @@ class Model(nn.Module):
         weights = np.linspace(1, max_negative_weight, int(steps)).tolist()
         val_steps = np.linspace(1, steps, 20).astype(np.int16)
         self.train_model(
-                    X=X_train,
-                    X_val=X_val,
-                    false_positive_val_data=false_positive_val_data,
-                    max_steps=steps,
-                    negative_weight_schedule=weights,
-                    val_steps=val_steps, warmup_steps=steps//5,
-                    hold_steps=steps//3, lr=lr, val_set_hrs=val_set_hrs)
+            X=X_train,
+            X_val=X_val,
+            false_positive_val_data=false_positive_val_data,
+            max_steps=steps,
+            negative_weight_schedule=weights,
+            val_steps=val_steps, warmup_steps=steps//5,
+            hold_steps=steps//3, lr=lr, val_set_hrs=val_set_hrs)
 
         # Sequence 3
         logging.info("#"*50 + "\nStarting training sequence 3...\n" + "#"*50)
@@ -315,13 +318,13 @@ class Model(nn.Module):
         weights = np.linspace(1, max_negative_weight, int(steps)).tolist()
         val_steps = np.linspace(1, steps, 20).astype(np.int16)
         self.train_model(
-                    X=X_train,
-                    X_val=X_val,
-                    false_positive_val_data=false_positive_val_data,
-                    max_steps=steps,
-                    negative_weight_schedule=weights,
-                    val_steps=val_steps, warmup_steps=steps//5,
-                    hold_steps=steps//3, lr=lr, val_set_hrs=val_set_hrs)
+            X=X_train,
+            X_val=X_val,
+            false_positive_val_data=false_positive_val_data,
+            max_steps=steps,
+            negative_weight_schedule=weights,
+            val_steps=val_steps, warmup_steps=steps//5,
+            hold_steps=steps//3, lr=lr, val_set_hrs=val_set_hrs)
 
         # Merge best models
         logging.info("Merging checkpoints above the 90th percentile into single model...")
@@ -362,8 +365,9 @@ class Model(nn.Module):
         logging.info(f"\n################\nFinal Model Accuracy: {combined_model_accuracy}"
                      f"\nFinal Model Recall: {combined_model_recall}\nFinal Model False Positives per Hour: {combined_model_fp_per_hr}"
                      "\n################\n")
+        model_meta_info = {'accuracy':combined_model_accuracy, 'recall': combined_model_recall, 'fp_per_hour': combined_model_fp_per_hr}
 
-        return combined_model
+        return combined_model, model_meta_info
 
     def predict_on_features(self, features, model=None):
         """
@@ -556,7 +560,7 @@ class Model(nn.Module):
             # of the validation scores up to that point
             if step_ndx in val_steps and step_ndx > 1:
                 if self.history["val_n_fp"][-1] <= np.percentile(self.history["val_n_fp"], 50) and \
-                   self.history["val_recall"][-1] >= np.percentile(self.history["val_recall"], 5):
+                        self.history["val_recall"][-1] >= np.percentile(self.history["val_recall"], 5):
                     # logging.info("Saving checkpoint with metrics >= to targets!")
                     self.best_models.append(copy.deepcopy(self.model))
                     self.best_model_scores.append({"training_step_ndx": step_ndx, "val_n_fp": self.history["val_n_fp"][-1],
@@ -594,6 +598,7 @@ def convert_onnx_to_tflite(onnx_model_path, output_path):
 
 
 if __name__ == '__main__':
+
     # Get training config file
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -666,14 +671,17 @@ if __name__ == '__main__':
             os.mkdir(positive_train_output_dir)
         n_current_samples = len(os.listdir(positive_train_output_dir))
         if n_current_samples <= 0.95*config["n_samples"]:
-            generate_samples(
-                text=config["target_phrase"], max_samples=config["n_samples"]-n_current_samples,
-                batch_size=config["tts_batch_size"],
-                noise_scales=[0.98], noise_scale_ws=[0.98], length_scales=[0.75, 1.0, 1.25],
-                output_dir=positive_train_output_dir, auto_reduce_batch_size=True,
-                file_names=[uuid.uuid4().hex + ".wav" for i in range(config["n_samples"])]
-            )
-            torch.cuda.empty_cache()
+            try:
+                generate_samples(
+                    text=config["target_phrase"], max_samples=config["n_samples"]-n_current_samples,
+                    batch_size=config["tts_batch_size"],
+                    noise_scales=[0.98], noise_scale_ws=[0.98], length_scales=[0.75, 1.0, 1.25],
+                    output_dir=positive_train_output_dir, auto_reduce_batch_size=True,
+                    file_names=[uuid.uuid4().hex + ".wav" for i in range(config["n_samples"])]
+                )
+                torch.cuda.empty_cache()
+            except Exception as e:
+                print(f'Error generating {config["target_phrase"]}: {e}')
         else:
             logging.warning(f"Skipping generation of positive clips for training, as ~{config['n_samples']} already exist")
 
@@ -683,11 +691,14 @@ if __name__ == '__main__':
             os.mkdir(positive_test_output_dir)
         n_current_samples = len(os.listdir(positive_test_output_dir))
         if n_current_samples <= 0.95*config["n_samples_val"]:
-            generate_samples(text=config["target_phrase"], max_samples=config["n_samples_val"]-n_current_samples,
-                             batch_size=config["tts_batch_size"],
-                             noise_scales=[1.0], noise_scale_ws=[1.0], length_scales=[0.75, 1.0, 1.25],
-                             output_dir=positive_test_output_dir, auto_reduce_batch_size=True)
-            torch.cuda.empty_cache()
+            try:
+                generate_samples(text=config["target_phrase"], max_samples=config["n_samples_val"]-n_current_samples,
+                                 batch_size=config["tts_batch_size"],
+                                 noise_scales=[1.0], noise_scale_ws=[1.0], length_scales=[0.75, 1.0, 1.25],
+                                 output_dir=positive_test_output_dir, auto_reduce_batch_size=True)
+                torch.cuda.empty_cache()
+            except Exception as e:
+                print(f'Error generating {config["target_phrase"]}: {e}')
         else:
             logging.warning(f"Skipping generation of positive clips testing, as ~{config['n_samples_val']} already exist")
 
@@ -699,17 +710,25 @@ if __name__ == '__main__':
         if n_current_samples <= 0.95*config["n_samples"]:
             adversarial_texts = config["custom_negative_phrases"]
             for target_phrase in config["target_phrase"]:
-                adversarial_texts.extend(generate_adversarial_texts(
-                    input_text=target_phrase,
-                    N=config["n_samples"]//len(config["target_phrase"]),
-                    include_partial_phrase=1.0,
-                    include_input_words=0.2))
-            generate_samples(text=adversarial_texts, max_samples=config["n_samples"]-n_current_samples,
-                             batch_size=config["tts_batch_size"]//7,
-                             noise_scales=[0.98], noise_scale_ws=[0.98], length_scales=[0.75, 1.0, 1.25],
-                             output_dir=negative_train_output_dir, auto_reduce_batch_size=True,
-                             file_names=[uuid.uuid4().hex + ".wav" for i in range(config["n_samples"])]
-                             )
+                try:
+                    adversarial_texts.extend(generate_adversarial_texts(
+                        input_text=target_phrase,
+                        N=config["n_samples"]//len(config["target_phrase"]),
+                        include_partial_phrase=1.0,
+                        include_input_words=0.2))
+                except Exception as e:
+                    print(f"Error generating {target_phrase}: {e}")
+
+                try:
+                    generate_samples(text=adversarial_texts, max_samples=config["n_samples"]-n_current_samples,
+                                     batch_size=config["tts_batch_size"]//7,
+                                     noise_scales=[0.98], noise_scale_ws=[0.98], length_scales=[0.75, 1.0, 1.25],
+                                     output_dir=negative_train_output_dir, auto_reduce_batch_size=True,
+                                     file_names=[uuid.uuid4().hex + ".wav" for i in range(config["n_samples"])]
+                                     )
+                except Exception as e:
+                    print(f"Error generating {adversarial_texts}: {e}")
+
             torch.cuda.empty_cache()
         else:
             logging.warning(f"Skipping generation of negative clips for training, as ~{config['n_samples']} already exist")
@@ -880,12 +899,12 @@ if __name__ == '__main__':
             torch.utils.data.TensorDataset(
                 torch.from_numpy(np.vstack((X_val_pos, X_val_neg))),
                 torch.from_numpy(labels)
-                ),
+            ),
             batch_size=len(labels)
         )
 
         # Run auto training
-        best_model = oww.auto_train(
+        best_model, meta_info = oww.auto_train(
             X_train=X_train,
             X_val=X_val,
             false_positive_val_data=X_val_fp,
@@ -894,10 +913,16 @@ if __name__ == '__main__':
             target_fp_per_hour=config["target_false_positives_per_hour"],
         )
 
+        meta_info['target_phrase'] = config['target_phrase']
+        model_meta_file = f'{config["model_name"]}.meta.json'
+        print(f"Saving model meta file {model_meta_file}")
+        with open(model_meta_file, 'w') as file:
+            json.dump(meta_info, file, indent=4)
+
         # Export the trained model to onnx
         oww.export_model(model=best_model, model_name=config["model_name"], output_dir=config["output_dir"])
 
-        # FIXME deps issue
         # Convert the model from onnx to tflite format
+        # TODO conversion does not work due to dependencies issue with tf
         # convert_onnx_to_tflite(os.path.join(config["output_dir"], config["model_name"] + ".onnx"),
         #                        os.path.join(config["output_dir"], config["model_name"] + ".tflite"))
