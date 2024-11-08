@@ -370,8 +370,8 @@ class Model(nn.Module):
         logging.info(f"\n################\nFinal Model Accuracy: {combined_model_accuracy}"
                      f"\nFinal Model Recall: {combined_model_recall}\nFinal Model False Positives per Hour: {combined_model_fp_per_hr}"
                      "\n################\n")
-        model_meta_info = {'accuracy': combined_model_accuracy, 'recall': combined_model_recall,
-                           'fp_per_hour': combined_model_fp_per_hr}
+        model_meta_info = {'accuracy': float(combined_model_accuracy), 'recall': float(combined_model_recall),
+                           'fp_per_hour': float(combined_model_fp_per_hr)}
 
         return combined_model, model_meta_info
 
