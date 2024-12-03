@@ -671,6 +671,7 @@ def augment_clips(
         batch = clip_paths[i:i+batch_size]
         augmented_clips = []
         for clip in batch:
+            print(f"Loading clip {clip}")
             clip_data, clip_sr = torchaudio.load(clip)
             clip_data = clip_data[0]
             if clip_data.shape[0] > total_length:
